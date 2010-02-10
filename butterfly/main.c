@@ -49,24 +49,15 @@ int main(void) {
 
     clock_init();
 
-    LCD_puts_f(PSTR("CLK OK"));
-    _delay_us(500000);
-
     timer_set(&periodic_timer, CLOCK_SECOND / 2);
     timer_set(&arp_timer, CLOCK_SECOND * 10);
 
     uip_init();
 
-    LCD_puts_f(PSTR("UIP OK"));
-    _delay_us(500000);
-
     struct uip_eth_addr mac = {{mac_addr.v[0], mac_addr.v[1], mac_addr.v[2], mac_addr.v[3], mac_addr.v[4], mac_addr.v[5]}};
 
     uip_setethaddr(mac);
     simple_httpd_init();
-
-    LCD_puts_f(PSTR("HTP OK"));
-    _delay_us(500000);
 
     uip_ipaddr(ipaddr, 192, 168, 1, 90);
     uip_sethostaddr(ipaddr);
