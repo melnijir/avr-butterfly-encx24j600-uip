@@ -20,7 +20,7 @@
 
 #include "enc424j600.h"
 #include "enc424j600conf.h"
-#include "avrlibdefs.h"
+#include "global.h"
 #include "LCD_driver.h"
 #include <avr/iom169.h>
 #include <avr/io.h>
