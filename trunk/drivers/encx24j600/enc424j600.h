@@ -52,7 +52,7 @@
 #ifndef __ENCX24J600_H
 #define __ENCX24J600_H
 
-#include "avrlibtypes.h"
+#include "global.h"
 
 // Define macro for 8-bit PSP SFR address translation to SPI addresses
 #define ENC100_TRANSLATE_TO_PIN_ADDR(a)		((a) & 0x00FFu)

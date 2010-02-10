@@ -36,8 +36,6 @@
 #ifndef ENC424J600CONF_H
 #define ENC424J600CONF_H
 
-#include "global-conf.h"
-
 // ENC424J600 SPI port
 #define ENC424J600_SPI_PORT		SPI_PORT
 #define ENC424J600_SPI_DDR		SPI_DDR
@@ -55,7 +53,8 @@
 #define TXSTART                         (0x0000)
 #define RXSTART                         (0x0600)	// Should be an even memory address
 
-// ENC424J600 default tcp/ip values
+// ENC424J600 default tcp/ip values (not in use now)
+/*
 #define MAC_ADDRESS1		0x00
 #define MAC_ADDRESS2		0x04
 #define MAC_ADDRESS3		0xA3
@@ -66,4 +65,6 @@
 #define IP_ADDRESS1			0
 #define IP_ADDRESS2			1
 #define IP_ADDRESS3			80
+*/
+
 #endif

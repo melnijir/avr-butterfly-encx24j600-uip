@@ -1,0 +1,1 @@
+DEV_SOURCES +=	enc424j600.c network.c
