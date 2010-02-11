@@ -74,9 +74,6 @@ int main(void) {
         uip_len = network_read();
 
         if (uip_len > 0) {
-                //LCD_puts_f(PSTR("ARRR"));
-                //_delay_us(100000);
-                //LCD_puts_f(PSTR("RUN OK"));
             if (BUF->type == htons(UIP_ETHTYPE_IP)) {
                 uip_arp_ipin();
                 uip_input();
