@@ -13,6 +13,10 @@ DEVS	= encx24j600 #The rest are determined by makefiles for apps
 
 TOPLEVEL = ..
 
+#Programer details
+PROGRAMMER = dapa
+PORT = /dev/parport0
+
 #Compiled libs
 #LIBS	= #Determined by makefiles for apps or drivers
 

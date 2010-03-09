@@ -31,9 +31,9 @@
 #TODO: Programmer configuration for avrdude
 
 #Define programmer used
-ifndef $(PROGRAMMER)
-	PROGRAMMER	= avrusb500
-endif
+#ifndef $(PROGRAMMER)
+#	PROGRAMMER	= avrusb500
+#endif
 
 ############################# Compiler configuration ##############################
 

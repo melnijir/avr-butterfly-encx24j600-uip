@@ -95,6 +95,12 @@ load: $(NAME).hex
 	avrdude -V -p $(CHIP) -c $(PROGRAMMER) -e -B 2 -U flash:w:$(OBJECTDIR)/$(NAME).hex
 	set +x
 
+#Loads with par port programmer
+loadparport: $(NAME).hex
+	set -x
+	avrdude -p $(CHIP) $(PORT) -c $(PROGRAMMER) -U flash:w:$(OBJECTDIR)/$(NAME).hex
+	set +x
+
 #Loads with verification
 loadcheck: $(NAME).hex
 	set -x
