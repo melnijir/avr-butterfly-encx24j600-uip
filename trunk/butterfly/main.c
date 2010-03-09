@@ -25,12 +25,7 @@
 extern u8_t uip_buf[UIP_BUFSIZE + 2];
 #define BUF ((struct uip_eth_hdr *)&uip_buf[0])
 
-
-MAC_ADDR mac_addr;
-IP_ADDR ip_addr;
-
 int main(void) {
-
     //Enable interupts
     sei();
 
@@ -44,16 +39,14 @@ int main(void) {
     //Init network
     network_init();
 
-    //Read MAC from ethernet chip
-    network_get_MAC((u8_t *)&mac_addr);
-
     //Display message about network initialization
     LCD_puts_f(PSTR("NET OK"));
     _delay_us(500000);
 
     //Basic static variables
     int i;
-    uip_ipaddr_t ipaddr;
+    uip_ipaddr_t ipaddr; //IP Address
+    struct uip_eth_addr mac_addr; //MAC Address
     struct timer periodic_timer, arp_timer;
 
     //Init clock (timers)
@@ -62,12 +55,23 @@ int main(void) {
     timer_set(&periodic_timer, CLOCK_SECOND / 2);
     timer_set(&arp_timer, CLOCK_SECOND * 10);
 
+    //Read MAC from ethernet chip
+    network_get_MAC((u8_t *) & mac_addr);
+
+    /* Here can be specified own MAC address
+    mac_addr.addr[0] = 0x10;
+    mac_addr.addr[1] = 0x11;
+    mac_addr.addr[2] = 0x12;
+    mac_addr.addr[3] = 0x13;
+    mac_addr.addr[4] = 0x14;
+    mac_addr.addr[5] = 0x15;
+    network_set_MAC((u8_t *) & mac_addr);*/
+
     //UIP initialization
     uip_init();
+    //Set MAC address in UIP (not to network card, this is only for arp)
+    uip_setethaddr(mac_addr);
 
-    struct uip_eth_addr mac = {{mac_addr.v[0], mac_addr.v[1], mac_addr.v[2], mac_addr.v[3], mac_addr.v[4], mac_addr.v[5]}};
-
-    uip_setethaddr(mac);
     simple_httpd_init();
 
     uip_ipaddr(ipaddr, 10, 0, 0, 60);

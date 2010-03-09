@@ -3,6 +3,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include "LCD_driver.h"
+#include "../interfaces/network.h"
 
 extern MAC_ADDR mac_addr;
 extern u8_t uip_buf[UIP_BUFSIZE + 2];
@@ -32,7 +33,16 @@ void network_get_MAC(u8_t* mac_addr) {
 
 void network_set_MAC(u8_t* mac_addr) {
     // write MAC address
-    // NOTE: MAC address in ENC28J60 is byte-backward
+    enc424j600SetMacAddr(mac_addr);
+}
 
+void network_set_sleep(void) {
+    // sleep :)
+    enc424j600PowerSaveEnable();
+}
+
+void network_set_wake_up(void) {
+    // sleep :)
+    enc424j600PowerSaveDisable();
 }
 
