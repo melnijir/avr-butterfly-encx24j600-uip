@@ -2,7 +2,7 @@
  * Title        : Microchip ENCX24J600 Ethernet Interface Driver
  * Author       : Jiri Melnikov
  * Created      : 28.12.2009
- * Version      : 0.1
+ * Version      : 0.1b
  * Target MCU   : Atmel AVR series
  *
  * Description  : This driver provides initialization and transmit/receive
@@ -182,6 +182,53 @@ void enc424j600ReadMacAddr(u08* macAddr) {
     regValue = enc424j600ReadReg(MAADR3);
     *macAddr++ = ((u08*) & regValue)[0];
     *macAddr++ = ((u08*) & regValue)[1];
+}
+
+void enc424j600SetMacAddr(u08* macAddr) {
+    u16 regValue;
+    ((u08*) & regValue)[0] = *macAddr++;
+    ((u08*) & regValue)[1] = *macAddr++;
+    enc424j600WriteReg(MAADR1, regValue);
+    ((u08*) & regValue)[0] = *macAddr++;
+    ((u08*) & regValue)[1] = *macAddr++;
+    enc424j600WriteReg(MAADR2, regValue);
+    ((u08*) & regValue)[0] = *macAddr++;
+    ((u08*) & regValue)[1] = *macAddr++;
+    enc424j600WriteReg(MAADR3, regValue);
+}
+
+void enc424j600PowerSaveEnable(void) {
+    //Turn off modular exponentiation and AES engine
+    enc424j600BFCReg(EIR, EIR_CRYPTEN);
+    //Turn off packet reception
+    enc424j600BFCReg(ECON1, ECON1_RXEN);
+    //Wait for any in-progress receptions to complete
+    while ((enc424j600ReadReg(ESTAT_RXBUSY) & ESTAT_RXBUSY) == ESTAT_RXBUSY) {
+        _delay_us(100);
+    }
+    //Wait for any current transmisions to complete
+    while ((enc424j600ReadReg(ECON1) & ECON1_TXRTS) == ECON1_TXRTS) {
+        _delay_us(100);
+    }
+    //Power-down PHY
+    u16 state;
+    state = enc424j600ReadPHYReg(PHCON1);
+    enc424j600WritePHYReg(PHCON1, state | PHCON1_PSLEEP);
+    //Power-down eth interface
+    enc424j600BFCReg(ECON2, ECON2_ETHEN);
+    enc424j600BFCReg(ECON2, ECON2_STRCH);
+}
+
+void enc424j600PowerSaveDisable(void) {
+    //Wake-up eth interface
+    enc424j600BFSReg(ECON2, ECON2_ETHEN);
+    enc424j600BFSReg(ECON2, ECON2_STRCH);
+    //Wake-up PHY
+    u16 state;
+    state = enc424j600ReadPHYReg(PHCON1);
+    enc424j600WritePHYReg(PHCON1, state & !PHCON1_PSLEEP);
+    //Turn on packet reception
+    enc424j600BFSReg(ECON1, ECON1_RXEN);
 }
 
 /********************************************************************

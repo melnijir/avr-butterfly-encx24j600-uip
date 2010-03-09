@@ -20,4 +20,10 @@ void network_set_MAC(u8_t* mac);
 /*Gets the MAC address of the device*/
 void network_get_MAC(u8_t* mac);
 
+/*Put ethernet interface to sleep mode*/
+void network_set_sleep(void);
+
+/*Put ethernet interface to wake up mode*/
+void network_set_wake_up(void);
+
 #endif /* __NETWORK_H__ */
