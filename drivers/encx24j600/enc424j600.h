@@ -57,9 +57,11 @@
 // Define macro for 8-bit PSP SFR address translation to SPI addresses
 #define ENC100_TRANSLATE_TO_PIN_ADDR(a)		((a) & 0x00FFu)
 
+// Main functions
 void enc424j600Init(void);
 u16 enc424j600PacketReceive(u16 maxlen, u08* packet);
 void enc424j600PacketSend(u16 len, u08* packet);
+void enc424j600ReadMacAddr(u08* mac_addr);
 
 // Crypto memory addresses.  These are accessible by the DMA only and therefore
 // have the same addresses no matter what MCU interface is being used (SPI,

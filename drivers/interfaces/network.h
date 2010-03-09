@@ -15,9 +15,9 @@ unsigned int network_read(void);
 void network_send(void);
 
 /*Sets the MAC address of the device*/
-void network_set_MAC(uint8_t* mac);
+void network_set_MAC(u8_t* mac);
 
 /*Gets the MAC address of the device*/
-void network_get_MAC(uint8_t* mac);
+void network_get_MAC(u8_t* mac);
 
 #endif /* __NETWORK_H__ */
