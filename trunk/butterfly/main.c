@@ -2,9 +2,9 @@
  * File:   main.c
  * Author: Jiri Melnikov
  *
- * Ukazka funkce ovladace ENC424J600
- * IP ADRESA: 10.0.1.80
- * MASKA: 255.255.255.0
+ * Driver preview ENC424J600
+ * IP ADRESS: 10.0.0.60
+ * MASK: 255.255.255.0
  */
 
 #include "global-conf.h"
@@ -31,27 +31,38 @@ IP_ADDR ip_addr;
 
 int main(void) {
 
+    //Enable interupts
     sei();
 
+    //Init LCD
     LCD_Init();
 
+    //Display welcome message
     LCD_puts_f(PSTR("START"));
     _delay_us(500000);
 
+    //Init network
     network_init();
 
+    //Read MAC from ethernet chip
+    network_get_MAC((u8_t *)&mac_addr);
+
+    //Display message about network initialization
     LCD_puts_f(PSTR("NET OK"));
     _delay_us(500000);
 
+    //Basic static variables
     int i;
     uip_ipaddr_t ipaddr;
     struct timer periodic_timer, arp_timer;
 
+    //Init clock (timers)
     clock_init();
 
     timer_set(&periodic_timer, CLOCK_SECOND / 2);
     timer_set(&arp_timer, CLOCK_SECOND * 10);
 
+    //UIP initialization
     uip_init();
 
     struct uip_eth_addr mac = {{mac_addr.v[0], mac_addr.v[1], mac_addr.v[2], mac_addr.v[3], mac_addr.v[4], mac_addr.v[5]}};
@@ -59,9 +70,9 @@ int main(void) {
     uip_setethaddr(mac);
     simple_httpd_init();
 
-    uip_ipaddr(ipaddr, 192, 168, 1, 90);
+    uip_ipaddr(ipaddr, 10, 0, 0, 60);
     uip_sethostaddr(ipaddr);
-    uip_ipaddr(ipaddr, 192, 168, 1, 1);
+    uip_ipaddr(ipaddr, 10, 0, 0, 138);
     uip_setdraddr(ipaddr);
     uip_ipaddr(ipaddr, 255, 255, 255, 0);
     uip_setnetmask(ipaddr);

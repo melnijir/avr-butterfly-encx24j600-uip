@@ -38,31 +38,29 @@
 static u08 currentBank;
 static u16 nextPacketPointer;
 
-// External MAC an IP address variable
-extern MAC_ADDR mac_addr;
-extern IP_ADDR ip_addr;
-
-
-void enc424j600Init(void);
-u16 enc424j600PacketReceive(u16 maxlen, u08* packet);
-void enc424j600PacketSend(u16 len, u08* packet);
-
-void enc424j600MACFlush(void);
+// Static functions
 static void enc424j600SendSystemReset(void);
+
+static bool enc424j600MACIsLinked(void);
+static bool enc424j600MACIsTxReady(void);
+static void enc424j600MACFlush(void);
+
+static void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length);
+static void enc424j600ReadMemoryWindow(u08 window, u08 *data, u16 length);
+
 static u16 enc424j600ReadReg(u16 address);
 static void enc424j600WriteReg(u16 address, u16 data);
-u16 enc424j600ReadPHYReg(u08 address);
-void enc424j600WritePHYReg(u08 address, u16 Data);
-static void enc424j600ExecuteOp0(u08 op);
-u08 enc424j600ExecuteOp8(u08 op, u08 data);
-u16 enc424j600ExecuteOp16(u08 op, u16 data);
-u32 enc424j600ExecuteOp32(u08 op, u32 data);
+static u16 enc424j600ReadPHYReg(u08 address);
+static void enc424j600WritePHYReg(u08 address, u16 Data);
+static void enc424j600ReadN(u08 op, u08* data, u16 dataLen);
+static void enc424j600WriteN(u08 op, u08* data, u16 dataLen);
 static void enc424j600BFSReg(u16 address, u16 bitMask);
 static void enc424j600BFCReg(u16 address, u16 bitMask);
-void enc424j600ReadMemoryWindow(u08 window, u08 *data, u16 length);
-void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length);
-static void enc424j600WriteN(u08 op, u08* data, u16 dataLen);
-static void enc424j600ReadN(u08 op, u08* data, u16 dataLen);
+
+static void enc424j600ExecuteOp0(u08 op);
+static u08 enc424j600ExecuteOp8(u08 op, u08 data);
+static u16 enc424j600ExecuteOp16(u08 op, u16 data);
+static u32 enc424j600ExecuteOp32(u08 op, u32 data);
 
 /********************************************************************
  * INITIALIZATION
@@ -110,22 +108,10 @@ void enc424j600Init(void) {
     enc424j600WriteReg(EUDAST, RAMSIZE);
     enc424j600WriteReg(EUDAND, RAMSIZE + 1);
 
-    // Get MAC adress
-    u16 regValue;
-    regValue = enc424j600ReadReg(MAADR1);
-    mac_addr.v[0] = ((u08*) & regValue)[0];
-    mac_addr.v[1] = ((u08*) & regValue)[1];
-    regValue = enc424j600ReadReg(MAADR2);
-    mac_addr.v[2] = ((u08*) & regValue)[0];
-    mac_addr.v[3] = ((u08*) & regValue)[1];
-    regValue = enc424j600ReadReg(MAADR3);
-    mac_addr.v[4] = ((u08*) & regValue)[0];
-    mac_addr.v[5] = ((u08*) & regValue)[1];
-
     // If promiscuous mode is set, than allow accept all packets
-    #ifdef PROMISCUOUS_MODE
-    enc424j600WriteReg(ERXFCON,(ERXFCON_CRCEN | ERXFCON_RUNTEN | ERXFCON_UCEN | ERXFCON_NOTMEEN | ERXFCON_MCEN));
-    #endif
+#ifdef PROMISCUOUS_MODE
+    enc424j600WriteReg(ERXFCON, (ERXFCON_CRCEN | ERXFCON_RUNTEN | ERXFCON_UCEN | ERXFCON_NOTMEEN | ERXFCON_MCEN));
+#endif
 
     // Set PHY Auto-negotiation to support 10BaseT Half duplex,
     // 10BaseT Full duplex, 100BaseTX Half Duplex, 100BaseTX Full Duplex,
@@ -134,52 +120,6 @@ void enc424j600Init(void) {
 
     // Enable RX packet reception
     enc424j600BFSReg(ECON1, ECON1_RXEN);
-}
-
-/********************************************************************
- * UTILS
- * ******************************************************************/
-
-static void enc424j600SendSystemReset(void) {
-    // Perform a reset via the SPI/PSP interface
-    do {
-        // Set and clear a few bits that clears themselves upon reset.
-        // If EUDAST cannot be written to and your code gets stuck in this
-        // loop, you have a hardware problem of some sort (SPI or PMP not
-        // initialized correctly, I/O pins aren't connected or are
-        // shorted to something, power isn't available, etc.)
-        sbi(PORTE, PE7);
-        do {
-            enc424j600WriteReg(EUDAST, 0x1234);
-        } while (enc424j600ReadReg(EUDAST) != 0x1234);
-        // Issue a reset and wait for it to complete
-        enc424j600BFSReg(ECON2, ECON2_ETHRST);
-        currentBank = 0; while ((enc424j600ReadReg(ESTAT) & (ESTAT_CLKRDY | ESTAT_RSTDONE | ESTAT_PHYRDY)) != (ESTAT_CLKRDY | ESTAT_RSTDONE | ESTAT_PHYRDY));
-        _delay_us(300);
-        // Check to see if the reset operation was successful by
-        // checking if EUDAST went back to its reset default.  This test
-        // should always pass, but certain special conditions might make
-        // this test fail, such as a PSP pin shorted to logic high.
-    } while (enc424j600ReadReg(EUDAST) != 0x0000u);
-
-    // Really ensure reset is done and give some time for power to be stable
-    _delay_us(1000);
-}
-
-/**
- * Is link connected?
- * @return <bool>
- */
-BOOL enc424j600MACIsLinked(void) {
-    return (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK) != 0u;
-}
-
-/**
- * Is transmission active?
- * @return <bool>
- */
-BOOL enc424j600MACIsTxReady(void) {
-    return !(enc424j600ReadReg(ECON1) & ECON1_TXRTS);
 }
 
 /********************************************************************
@@ -198,7 +138,7 @@ u16 enc424j600PacketReceive(u16 len, u08* packet) {
     // Set the RX Read Pointer to the beginning of the next unprocessed packet
     enc424j600WriteReg(ERXRDPT, nextPacketPointer);
 
-    
+
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & nextPacketPointer, sizeof (nextPacketPointer));
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & statusVector, sizeof (statusVector));
     if (statusVector.bits.ByteCount <= len) len = statusVector.bits.ByteCount;
@@ -230,7 +170,68 @@ void enc424j600PacketSend(u16 len, u08* packet) {
 
 }
 
-void enc424j600MACFlush(void) {
+void enc424j600ReadMacAddr(u08* macAddr) {
+    // Get MAC adress
+    u16 regValue;
+    regValue = enc424j600ReadReg(MAADR1);
+    *macAddr++ = ((u08*) & regValue)[0];
+    *macAddr++ = ((u08*) & regValue)[1];
+    regValue = enc424j600ReadReg(MAADR2);
+    *macAddr++ = ((u08*) & regValue)[0];
+    *macAddr++ = ((u08*) & regValue)[1];
+    regValue = enc424j600ReadReg(MAADR3);
+    *macAddr++ = ((u08*) & regValue)[0];
+    *macAddr++ = ((u08*) & regValue)[1];
+}
+
+/********************************************************************
+ * UTILS
+ * ******************************************************************/
+
+static void enc424j600SendSystemReset(void) {
+    // Perform a reset via the SPI/PSP interface
+    do {
+        // Set and clear a few bits that clears themselves upon reset.
+        // If EUDAST cannot be written to and your code gets stuck in this
+        // loop, you have a hardware problem of some sort (SPI or PMP not
+        // initialized correctly, I/O pins aren't connected or are
+        // shorted to something, power isn't available, etc.)
+        sbi(PORTE, PE7);
+        do {
+            enc424j600WriteReg(EUDAST, 0x1234);
+        } while (enc424j600ReadReg(EUDAST) != 0x1234);
+        // Issue a reset and wait for it to complete
+        enc424j600BFSReg(ECON2, ECON2_ETHRST);
+        currentBank = 0;
+        while ((enc424j600ReadReg(ESTAT) & (ESTAT_CLKRDY | ESTAT_RSTDONE | ESTAT_PHYRDY)) != (ESTAT_CLKRDY | ESTAT_RSTDONE | ESTAT_PHYRDY));
+        _delay_us(300);
+        // Check to see if the reset operation was successful by
+        // checking if EUDAST went back to its reset default.  This test
+        // should always pass, but certain special conditions might make
+        // this test fail, such as a PSP pin shorted to logic high.
+    } while (enc424j600ReadReg(EUDAST) != 0x0000u);
+
+    // Really ensure reset is done and give some time for power to be stable
+    _delay_us(1000);
+}
+
+/**
+ * Is link connected?
+ * @return <bool>
+ */
+static bool enc424j600MACIsLinked(void) {
+    return (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK) != 0u;
+}
+
+/**
+ * Is transmission active?
+ * @return <bool>
+ */
+static bool enc424j600MACIsTxReady(void) {
+    return !(enc424j600ReadReg(ECON1) & ECON1_TXRTS);
+}
+
+static void enc424j600MACFlush(void) {
     u16 w;
 
     // Check to see if the duplex status has changed.  This can
@@ -272,7 +273,7 @@ void enc424j600MACFlush(void) {
  * READERS AND WRITERS
  * ******************************************************************/
 
-void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length) {
+static void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length) {
     u08 op = RBMUDA;
 
     if (window & GP_WINDOW)
@@ -283,7 +284,7 @@ void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length) {
     enc424j600WriteN(op, data, length);
 }
 
-void enc424j600ReadMemoryWindow(u08 window, u08 *data, u16 length) {
+static void enc424j600ReadMemoryWindow(u08 window, u08 *data, u16 length) {
     if (length == 0u)
         return;
 
@@ -365,7 +366,7 @@ static void enc424j600WriteReg(u16 address, u16 data) {
 
 }
 
-u16 enc424j600ReadPHYReg(u08 address) {
+static u16 enc424j600ReadPHYReg(u08 address) {
     u16 returnValue;
 
     // Set the right address and start the register read operation
@@ -385,7 +386,7 @@ u16 enc424j600ReadPHYReg(u08 address) {
     return returnValue;
 }
 
-void enc424j600WritePHYReg(u08 address, u16 Data) {
+static void enc424j600WritePHYReg(u08 address, u16 Data) {
     // Write the register address
     enc424j600WriteReg(MIREGADR, 0x0100 | address);
 
@@ -506,7 +507,7 @@ static void enc424j600ExecuteOp0(u08 op) {
  * @variable <u08> op - SPI operation
  * @variable <u08> data - data
  */
-u08 enc424j600ExecuteOp8(u08 op, u08 data) {
+static u08 enc424j600ExecuteOp8(u08 op, u08 data) {
     u08 returnValue;
     // assert CS
     ENC424J600_CONTROL_PORT &= ~(1 << ENC424J600_CONTROL_CS);
@@ -532,7 +533,7 @@ u08 enc424j600ExecuteOp8(u08 op, u08 data) {
  * @variable <u08> op - SPI operation
  * @variable <u16> data - data
  */
-u16 enc424j600ExecuteOp16(u08 op, u16 data) {
+static u16 enc424j600ExecuteOp16(u08 op, u16 data) {
     u16 returnValue;
     // assert CS
     // zabereme sbernici
@@ -563,7 +564,7 @@ u16 enc424j600ExecuteOp16(u08 op, u16 data) {
  * @variable <u08> op - SPI operation
  * @variable <u32> data - data
  */
-u32 enc424j600ExecuteOp32(u08 op, u32 data) {
+static u32 enc424j600ExecuteOp32(u08 op, u32 data) {
     u16 returnValue;
     // assert CS
     ENC424J600_CONTROL_PORT &= ~(1 << ENC424J600_CONTROL_CS);
