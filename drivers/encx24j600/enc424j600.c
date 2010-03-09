@@ -226,7 +226,7 @@ void enc424j600PowerSaveDisable(void) {
     //Wake-up PHY
     u16 state;
     state = enc424j600ReadPHYReg(PHCON1);
-    enc424j600WritePHYReg(PHCON1, state & !PHCON1_PSLEEP);
+    enc424j600WritePHYReg(PHCON1, state & ~PHCON1_PSLEEP);
     //Turn on packet reception
     enc424j600BFSReg(ECON1, ECON1_RXEN);
 }
