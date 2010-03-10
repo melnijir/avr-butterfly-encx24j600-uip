@@ -64,6 +64,7 @@ void enc424j600PacketSend(u16 len, u08* packet);
 void enc424j600ReadMacAddr(u08* macAddr);
 void enc424j600SetMacAddr(u08* macAddr);
 void enc424j600PowerSaveEnable(void);
+bool enc424j600IsLinked(void);
 
 // Crypto memory addresses.  These are accessible by the DMA only and therefore
 // have the same addresses no matter what MCU interface is being used (SPI,

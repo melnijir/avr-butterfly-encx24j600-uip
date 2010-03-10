@@ -5,7 +5,6 @@
 #include "LCD_driver.h"
 #include "../interfaces/network.h"
 
-extern MAC_ADDR mac_addr;
 extern u8_t uip_buf[UIP_BUFSIZE + 2];
 extern u16_t uip_len;
 

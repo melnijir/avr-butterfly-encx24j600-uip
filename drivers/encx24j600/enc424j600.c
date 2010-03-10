@@ -41,7 +41,6 @@ static u16 nextPacketPointer;
 // Static functions
 static void enc424j600SendSystemReset(void);
 
-static bool enc424j600MACIsLinked(void);
 static bool enc424j600MACIsTxReady(void);
 static void enc424j600MACFlush(void);
 
@@ -203,11 +202,11 @@ void enc424j600PowerSaveEnable(void) {
     //Turn off packet reception
     enc424j600BFCReg(ECON1, ECON1_RXEN);
     //Wait for any in-progress receptions to complete
-    while ((enc424j600ReadReg(ESTAT_RXBUSY) & ESTAT_RXBUSY) == ESTAT_RXBUSY) {
+    while (enc424j600ReadReg(ESTAT_RXBUSY) & ESTAT_RXBUSY) {
         _delay_us(100);
     }
     //Wait for any current transmisions to complete
-    while ((enc424j600ReadReg(ECON1) & ECON1_TXRTS) == ECON1_TXRTS) {
+    while (enc424j600ReadReg(ECON1) & ECON1_TXRTS) {
         _delay_us(100);
     }
     //Power-down PHY
@@ -229,6 +228,14 @@ void enc424j600PowerSaveDisable(void) {
     enc424j600WritePHYReg(PHCON1, state & ~PHCON1_PSLEEP);
     //Turn on packet reception
     enc424j600BFSReg(ECON1, ECON1_RXEN);
+}
+
+/**
+ * Is link connected?
+ * @return <bool>
+ */
+bool enc424j600IsLinked(void) {
+    return (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK) != 0u;
 }
 
 /********************************************************************
@@ -260,14 +267,6 @@ static void enc424j600SendSystemReset(void) {
 
     // Really ensure reset is done and give some time for power to be stable
     _delay_us(1000);
-}
-
-/**
- * Is link connected?
- * @return <bool>
- */
-static bool enc424j600MACIsLinked(void) {
-    return (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK) != 0u;
 }
 
 /**
