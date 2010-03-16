@@ -21,8 +21,8 @@
 #include "enc424j600.h"
 #include "enc424j600conf.h"
 #include "global.h"
-#include <avr/iom169.h>
 #include <avr/io.h>
+#include <avr/iom169.h>
 #include <util/delay.h>
 
 // Binary constant identifiers for ReadMemoryWindow() and WriteMemoryWindow()

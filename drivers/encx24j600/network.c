@@ -6,7 +6,6 @@
 #include "../interfaces/network.h"
 
 extern u8_t uip_buf[UIP_BUFSIZE + 2];
-extern u16_t uip_len;
 
 unsigned int network_read(void) {
     //Receive pacet
