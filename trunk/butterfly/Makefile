@@ -15,6 +15,7 @@ TOPLEVEL = ..
 
 #Programer details
 PROGRAMMER = dapa
+FULLCHIP = atmega16
 PORT = /dev/parport0
 
 #Compiled libs

@@ -87,18 +87,12 @@ $(NAME).out: dev_OBJECTS app_OBJECTS lib_OBJECTS $(NAME)_OBJECTS uip_OBJECTS
 #Rule for building hex file
 $(NAME).hex: $(NAME).out
 	$(OBJCOPY) -R .eeprom -O ihex $(OBJECTDIR)/$(NAME).out $(OBJECTDIR)/$(NAME).hex
-	avr-size $(OBJECTDIR)/$(NAME).out
+	avr-size -C --mcu=$(FULLCHIP) $(OBJECTDIR)/$(NAME).out
 
 #Loads without verifying
 load: $(NAME).hex
 	set -x
 	avrdude -V -p $(CHIP) -c $(PROGRAMMER) -e -B 2 -U flash:w:$(OBJECTDIR)/$(NAME).hex
-	set +x
-
-#Loads with par port programmer
-loadparport: $(NAME).hex
-	set -x
-	avrdude -p $(CHIP) $(PORT) -c $(PROGRAMMER) -U flash:w:$(OBJECTDIR)/$(NAME).hex
 	set +x
 
 #Loads with verification
