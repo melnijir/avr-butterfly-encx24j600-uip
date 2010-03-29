@@ -1,20 +1,24 @@
 /******************************************
  * Title        : Microchip ENCX24J600 Ethernet Interface Driver
  * Author       : Jiri Melnikov
- * Created      : 28.12.2009
- * Version      : 0.1b
+ * Created      : 29.03.2010
+ * Version      : 0.2
  * Target MCU   : Atmel AVR series
  *
- * Description  : This driver provides initialization and transmit/receive
- *                functions for the Microchip ENCX24J600 100Mb Ethernet
- *                Controller and PHY. Only supported interface is SPI, no
- *                PSP interface available by now. No security functions are
- *                are supported by now.
+ * Description  : * This driver provides initialization and transmit/receive
+ *                  functions for the Microchip ENCX24J600 100Mb Ethernet
+ *                  Controller and PHY.
+ *                * As addition, userspace access and hardware checksum
+ *                  functions are available.
+ *                * Only supported interface is SPI, no PSP interface available
+ *                  by now.
+ *                * No security functions are supported by now.
  *
- *                This driver is inspired by ENC28J60 driver from Pascal
- *                Stang (2005).
+ *                * This driver is inspired by ENC28J60 driver from Pascal
+ *                  Stang (2005).
  *
- *                Many lines of code are taken from Microchip's TCP/IP stack.
+ *                * Many lines of code are rewritten from Microchip's TCP/IP
+ *                  stack.
  * 
  * ****************************************/
 
@@ -34,6 +38,21 @@
 // Promiscuous mode, uncomment if you want to receive all packets, even those which are not for you
 // #define PROMISCUOUS_MODE
 
+// Hardware checksum computation
+#define HARDWARE_CHECKSUM  //Comment to disable automatic hardware checksum in ip/icmp/tcp/udp packets
+#ifdef HARDWARE_CHECKSUM
+
+//#define HARDWARE_CHECKSUM_NULL  //Comment to disable cleraing checksums
+#define IP_PROTOCOL1 0x08
+#define IP_PROTOCOL2 0x00
+#define ICMP_PROTOCOL 0x01
+#define TCP_PROTOCOL 0x06
+#define UDP_PROTOCOL 0x11
+#define ETH_HEADER 14
+#define IP_PROTOCOL_POS 23
+
+#endif
+
 // Internal MAC level variables and flags.
 static u08 currentBank;
 static u16 nextPacketPointer;
@@ -43,6 +62,7 @@ static void enc424j600SendSystemReset(void);
 
 static bool enc424j600MACIsTxReady(void);
 static void enc424j600MACFlush(void);
+static u16 enc424j600ChecksumCalculation(u16 position, u16 length, u16 seed);
 
 static void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length);
 static void enc424j600ReadMemoryWindow(u08 window, u08 *data, u16 length);
@@ -104,8 +124,8 @@ void enc424j600Init(void) {
     enc424j600WriteReg(ETXST, TXSTART);
     enc424j600WriteReg(ERXST, RXSTART);
     enc424j600WriteReg(ERXTAIL, RAMSIZE - 2);
-    enc424j600WriteReg(EUDAST, RAMSIZE);
-    enc424j600WriteReg(EUDAND, RAMSIZE + 1);
+    enc424j600WriteReg(EUDAST, USSTART);
+    enc424j600WriteReg(EUDAND, USEND);
 
     // If promiscuous mode is set, than allow accept all packets
 #ifdef PROMISCUOUS_MODE
@@ -125,6 +145,9 @@ void enc424j600Init(void) {
  * PACKET TRANSMISSION
  * ******************************************************************/
 
+/**
+ * Recieves packet
+ * */
 u16 enc424j600PacketReceive(u16 len, u08* packet) {
     u16 newRXTail;
     RXSTATUS statusVector;
@@ -157,11 +180,80 @@ u16 enc424j600PacketReceive(u16 len, u08* packet) {
     return len;
 }
 
+/**
+ * Sends packet
+ * */
+#include "LCD_driver.h"
+
 void enc424j600PacketSend(u16 len, u08* packet) {
     // Set the Window Write Pointer to the beginning of the transmit buffer
+    enc424j600WriteReg(EGPWRPT, TXSTART);
+
+#ifdef HARDWARE_CHECKSUM_NULL
+    // Is it the IP packet? If so, for sure null checksum a let hardware to compute it
+    if (packet[12] == IP_PROTOCOL1 && packet[13] == IP_PROTOCOL2) {
+        //clear IP checksum
+        packet[24] = 0;
+        packet[25] = 0;
+        //we can also compute icmp/tcp/udp messages
+        if (packet[IP_PROTOCOL_POS] == ICMP_PROTOCOL) {
+            //clear ICMP checksum
+            packet[36] = 0;
+            packet[37] = 0;
+        } else if (packet[IP_PROTOCOL_POS] == TCP_PROTOCOL) {
+            //clear TCP checksum
+            packet[50] = 0;
+            packet[51] = 0;
+        } else if (packet[IP_PROTOCOL_POS] == UDP_PROTOCOL) {
+            //clear UDP checksum
+            packet[40] = 0;
+            packet[41] = 0;
+        }
+    }
+#endif
+
     enc424j600WriteMemoryWindow(GP_WINDOW, packet, len);
 
-    enc424j600WriteReg(EGPWRPT, TXSTART);
+#ifdef HARDWARE_CHECKSUM
+    // Is it the IP packet? Get it computed by hardware
+    if (packet[12] == IP_PROTOCOL1 && packet[13] == IP_PROTOCOL2) {
+        //Compute header length
+        u08 headerLen = (packet[ETH_HEADER] & 15)*4;
+        //Compute checksum of IP header
+        u16 checksum = enc424j600ChecksumCalculation(ETH_HEADER, headerLen, 0x0000);
+        //Write it to correct position
+        enc424j600WriteReg(EGPWRPT, 24);
+        enc424j600WriteMemoryWindow(GP_WINDOW, ((u08*) & checksum), 2);
+
+        //we can also compute icmp/tcp/udp messages
+        if (packet[IP_PROTOCOL_POS] == ICMP_PROTOCOL) { /*ICMP*/
+            //Compute header length
+            u08 icmpLen = len - headerLen - ETH_HEADER;
+            //Compute checksum of ICMP
+            checksum = enc424j600ChecksumCalculation(ETH_HEADER + headerLen, icmpLen, 0x0000);
+            //Write it to correct position
+            enc424j600WriteReg(EGPWRPT, 36);
+            enc424j600WriteMemoryWindow(GP_WINDOW, ((u08*) & checksum), 2);
+        } else if (packet[IP_PROTOCOL_POS] == TCP_PROTOCOL || packet[IP_PROTOCOL_POS] == UDP_PROTOCOL) { /*TCP or UDP*/
+            //Compute header length
+            u16 upperLayerLen = len - headerLen - ETH_HEADER;
+
+            //Compute checksum of TCP or UDP
+            checksum = ~(HTONS(packet[IP_PROTOCOL_POS] + upperLayerLen)); //HTONS macro is from uIP
+            checksum = enc424j600ChecksumCalculation(26, 8, checksum);
+            checksum = enc424j600ChecksumCalculation(ETH_HEADER + headerLen, upperLayerLen, checksum);
+
+            //Write it to correct position
+            if (packet[IP_PROTOCOL_POS] == TCP_PROTOCOL) {
+                enc424j600WriteReg(EGPWRPT, 50);
+            } else {
+                enc424j600WriteReg(EGPWRPT, 40);
+            }
+            enc424j600WriteMemoryWindow(GP_WINDOW, ((u08*) & checksum), 2);
+        }
+    }
+#endif
+
     enc424j600WriteReg(ETXLEN, len);
 
     enc424j600MACFlush();
@@ -169,7 +261,10 @@ void enc424j600PacketSend(u16 len, u08* packet) {
 
 }
 
-void enc424j600ReadMacAddr(u08* macAddr) {
+/**
+ * Reads MAC address of device
+ * */
+void enc424j600ReadMacAddr(u08 * macAddr) {
     // Get MAC adress
     u16 regValue;
     regValue = enc424j600ReadReg(MAADR1);
@@ -183,7 +278,10 @@ void enc424j600ReadMacAddr(u08* macAddr) {
     *macAddr++ = ((u08*) & regValue)[1];
 }
 
-void enc424j600SetMacAddr(u08* macAddr) {
+/**
+ * Sets MAC address of device
+ * */
+void enc424j600SetMacAddr(u08 * macAddr) {
     u16 regValue;
     ((u08*) & regValue)[0] = *macAddr++;
     ((u08*) & regValue)[1] = *macAddr++;
@@ -196,6 +294,9 @@ void enc424j600SetMacAddr(u08* macAddr) {
     enc424j600WriteReg(MAADR3, regValue);
 }
 
+/**
+ * Enables powersave mode
+ * */
 void enc424j600PowerSaveEnable(void) {
     //Turn off modular exponentiation and AES engine
     enc424j600BFCReg(EIR, EIR_CRYPTEN);
@@ -218,6 +319,9 @@ void enc424j600PowerSaveEnable(void) {
     enc424j600BFCReg(ECON2, ECON2_STRCH);
 }
 
+/**
+ * Disables powersave mode
+ * */
 void enc424j600PowerSaveDisable(void) {
     //Wake-up eth interface
     enc424j600BFSReg(ECON2, ECON2_ETHEN);
@@ -236,6 +340,28 @@ void enc424j600PowerSaveDisable(void) {
  */
 bool enc424j600IsLinked(void) {
     return (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK) != 0u;
+}
+
+/**
+ * Saves data to userspace defined by USSTART & USEND
+ * @return bool (true if saved, false if there is no space)
+ * */
+bool enc424j600SaveToUserSpace(u16 position, u08* data, u16 len) {
+    if ((USSTART + position + len) > USEND) return false;
+    enc424j600WriteReg(EUDAWRPT, USSTART + position);
+    enc424j600WriteMemoryWindow(UDA_WINDOW, data, len);
+    return true;
+}
+
+/**
+ * Loads data from userspace defined by USSTART & USEND
+ * @return bool (true if area is in userspace, false if asked area is out of userspace)
+ * */
+bool enc424j600ReadFromUserSpace(u16 position, u08* data, u16 len) {
+    if ((USSTART + position + len) > USEND) return false;
+    enc424j600WriteReg(EUDARDPT, USSTART + position);
+    enc424j600ReadMemoryWindow(UDA_WINDOW, data, len);
+    return true;
 }
 
 /********************************************************************
@@ -315,12 +441,45 @@ static void enc424j600MACFlush(void) {
         enc424j600BFSReg(ECON1, ECON1_TXRTS);
 }
 
+/**
+ * Calculates IP checksum value
+ *
+ * */
+static u16 enc424j600ChecksumCalculation(u16 position, u16 length, u16 seed) {
+    // Wait until module is idle
+    while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+        _delay_us(50);
+    }
+    // Clear DMACPY to prevent a copy operation
+    enc424j600BFCReg(ECON1, ECON1_DMACPY);
+    // Clear DMANOCS to select a checksum operation
+    enc424j600BFCReg(ECON1, ECON1_DMANOCS);
+    // Clear DMACSSD to use the default seed of 0000h
+    enc424j600BFCReg(ECON1, ECON1_DMACSSD);
+    // Set EDMAST to source address
+    enc424j600WriteReg(EDMAST, position);
+    // Set EDMALEN to length
+    enc424j600WriteReg(EDMALEN, length);
+    //If we have a seed, now it's time
+    if (seed) {
+        enc424j600BFSReg(ECON1, ECON1_DMACSSD);
+        enc424j600WriteReg(EDMACS, seed);
+    }
+    // Initiate operation
+    enc424j600BFSReg(ECON1, ECON1_DMAST);
+    // Wait until done
+    while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+        _delay_us(50);
+    }
+    return enc424j600ReadReg(EDMACS);
+}
+
 /********************************************************************
  * READERS AND WRITERS
  * ******************************************************************/
 
 static void enc424j600WriteMemoryWindow(u08 window, u08 *data, u16 length) {
-    u08 op = RBMUDA;
+    u08 op = WBMUDA;
 
     if (window & GP_WINDOW)
         op = WBMGP;

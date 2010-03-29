@@ -5,7 +5,9 @@
 
 //#include "smtp.h"
 //#include "hello-world.h"
-#include "simple-httpd.h"
+//#include "simple-httpd.h"
+#include "simple-httpd-temperature.h"
+//#include "speaker.h"
 //#include "telnetd.h"
 //#include "webserver.h"
 //#include "dhcpc.h"
