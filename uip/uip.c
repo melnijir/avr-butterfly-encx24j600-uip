@@ -317,6 +317,9 @@ uip_chksum(u16_t *data, u16_t len)
 u16_t
 uip_ipchksum(void)
 {
+  /*ONLY FOR ENC424J600 DRIVER WITH ENABLED HARDWARE CHECKSUM*/
+  return ~0;
+  /*---------------------------------------------------------*/
   u16_t sum;
 
   sum = chksum(0, &uip_buf[UIP_LLH_LEN], UIP_IPH_LEN);
@@ -328,6 +331,9 @@ uip_ipchksum(void)
 static u16_t
 upper_layer_chksum(u8_t proto)
 {
+  /*ONLY FOR ENC424J600 DRIVER WITH ENABLED HARDWARE CHECKSUM*/
+  return ~0;
+  /*---------------------------------------------------------*/
   u16_t upper_layer_len;
   u16_t sum;
   
@@ -995,11 +1001,17 @@ uip_process(u8_t flag)
 
   ICMPBUF->type = ICMP_ECHO_REPLY;
 
+  /*ONLY FOR ENC424J600 DRIVER WITH ENABLED HARDWARE CHECKSUM*/
+  /*
   if(ICMPBUF->icmpchksum >= HTONS(0xffff - (ICMP_ECHO << 8))) {
     ICMPBUF->icmpchksum += HTONS(ICMP_ECHO << 8) + 1;
   } else {
     ICMPBUF->icmpchksum += HTONS(ICMP_ECHO << 8);
   }
+  */
+  ICMPBUF->icmpchksum = 0;
+  ICMPBUF->ipchksum = 0;
+  /*---------------------------------------------------------*/
 
   /* Swap IP addresses. */
   uip_ipaddr_copy(BUF->destipaddr, BUF->srcipaddr);

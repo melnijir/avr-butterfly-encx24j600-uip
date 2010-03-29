@@ -3,10 +3,10 @@ MCU	= atmega169
 CHIP	= m169
 
 #Project name
-NAME    = simple-httpd
+NAME    = example
 
 #Compiled apps
-APPS	= simple-httpd
+APPS	= simple-httpd-temperature
 
 #Compiled drivers
 DEVS	= encx24j600 #The rest are determined by makefiles for apps
@@ -22,7 +22,7 @@ PORT = /dev/parport0
 #LIBS	= #Determined by makefiles for apps or drivers
 
 #Project specific files
-$(NAME)_SOURCES = main.c clock-arch.c LCD_driver.c
+$(NAME)_SOURCES = main.c clock-arch.c LCD_driver.c temperature.c
 
 #Include global configurations
 -include ../MakeConf.include

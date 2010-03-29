@@ -50,7 +50,12 @@
 
 // ENC424J600 config
 #define RAMSIZE         		(0x6000)
-#define TXSTART                         (0x0000)
-#define RXSTART                         (0x0600)	// Should be an even memory address
+#define TXSTART                         (0x0000)        // Transmit buffer start
+#define USSTART                         (0x0600)        // User space buffer start (to disable user space set to 0x6000 - should be an even memory address)
+#define USEND                           (0x15FF)        // User space buffer end (to disable user space set to 0x6001 - should be an odd memory address)
+#define RXSTART                         (0x1600)	// Recieve buffer start (should be an even memory address)
+
+
+
 
 #endif
