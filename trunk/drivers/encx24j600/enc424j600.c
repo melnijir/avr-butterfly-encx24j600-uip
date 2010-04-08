@@ -303,7 +303,7 @@ void enc424j600PowerSaveEnable(void) {
     //Turn off packet reception
     enc424j600BFCReg(ECON1, ECON1_RXEN);
     //Wait for any in-progress receptions to complete
-    while (enc424j600ReadReg(ESTAT_RXBUSY) & ESTAT_RXBUSY) {
+    while (enc424j600ReadReg(ESTAT) & ESTAT_RXBUSY) {
         _delay_us(100);
     }
     //Wait for any current transmisions to complete
