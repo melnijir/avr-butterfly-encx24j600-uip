@@ -262,7 +262,7 @@ u16 enc424j600PacketReceive(u16 len, u08* packet) {
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & nextPacketPointer, sizeof (nextPacketPointer));
 
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & statusVector, sizeof (statusVector));
-    if (statusVector.bits.ByteCount <= len) len = statusVector.bits.ByteCount;
+    len = (statusVector.bits.ByteCount <= len+4) ? statusVector.bits.ByteCount-4 : 0;
     enc424j600ReadMemoryWindow(RX_WINDOW, packet, len);
 
     newRXTail = nextPacketPointer - 2;
