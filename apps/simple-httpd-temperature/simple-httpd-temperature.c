@@ -10,6 +10,7 @@
 
 
 
+
 static int handle_connection(struct simple_httpd_state *s);
 
 void simple_httpd_init(void) {
@@ -28,7 +29,7 @@ void simple_httpd_appcall(void) {
     handle_connection(s);
 }
 
-static int handle_connection(struct simple_httpd_state *s) {
+static int handle_connection(struct simple_httpd_state *s) {    
     s08 temp = get_temp();
     s08 temp_text[4];
     itoa(temp,temp_text);

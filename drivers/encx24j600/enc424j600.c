@@ -38,6 +38,10 @@
 // Promiscuous mode, uncomment if you want to receive all packets, even those which are not for you
 // #define PROMISCUOUS_MODE
 
+// Auto answer to ICMP requests, uncomment if you want to ICMP echo packets be managed by hardware.
+// (if enc424j600PacketReceive is called and ICMP packet is waiting, function returns null lenght and provides automatic response)
+#define AUTO_ICMP_ECHO
+
 // Hardware checksum computation
 #define HARDWARE_CHECKSUM  //Comment to disable automatic hardware checksum in ip/icmp/tcp/udp packets
 #ifdef HARDWARE_CHECKSUM
@@ -156,12 +160,107 @@ u16 enc424j600PacketReceive(u16 len, u08* packet) {
         return FALSE;
     }
 
+#ifdef AUTO_ICMP_ECHO  //Check if packet is ICMP echo packet and answer to it automaticaly
+    //Set buffer for packet data
+    u08 packetData[2];
+    // Set the RX Read Pointer to the beginning of the next unprocessed packet + statusVektor + nextPacketPointer + position where paket type is saved
+    enc424j600WriteReg(ERXRDPT, nextPacketPointer + sizeof (statusVector) + ETH_HEADER);
+
+    //Read type of paket first, if it's IP
+    enc424j600ReadMemoryWindow(RX_WINDOW, packetData, sizeof (packetData));
+    if (packetData[0] == IP_PROTOCOL1 && packetData[1] == IP_PROTOCOL2) {
+        //Ok, it's ip packet, check if it's icmp packet
+        enc424j600WriteReg(ERXRDPT, nextPacketPointer + 2 + sizeof (statusVector) + IP_PROTOCOL_POS);
+        enc424j600ReadMemoryWindow(RX_WINDOW, packetData, 1);
+        if (packetData[0] == ICMP_PROTOCOL) {
+            //It's icmp packet, read lenght and do DMA copy operation from recieve buffer to transmit buffer
+            enc424j600WriteReg(ERXRDPT, nextPacketPointer + 2);
+            enc424j600ReadMemoryWindow(RX_WINDOW, packetData, 2);
+            if (*(u16*) packetData < 1522) {
+                //Now do DMA copy, first read length from IP packet
+                u16 ipPacketLen;
+                u08 ipHeaderLen;
+                enc424j600WriteReg(ERXRDPT, nextPacketPointer + 2 + sizeof (statusVector) + 14);
+                enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & ipHeaderLen, 1);
+                ipHeaderLen = (ipHeaderLen & 15)*4;
+                enc424j600WriteReg(ERXRDPT, nextPacketPointer + 2 + sizeof (statusVector) + 16);
+                enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & ipPacketLen, 2);
+                ipPacketLen = HTONS(ipPacketLen);
+                //Wait until controler is ready
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                //Set DMA copy and no checksum while copying (checksum computing at the end will be faster)
+                //Switch MAC addr
+                enc424j600BFSReg(ECON1, ECON1_DMACPY);
+                enc424j600BFSReg(ECON1, ECON1_DMANOCS);
+                enc424j600WriteReg(EDMAST, nextPacketPointer + 2 + sizeof (statusVector) + 6); //Switch MAC addr in packet
+                enc424j600WriteReg(EDMADST, TXSTART);
+                enc424j600WriteReg(EDMALEN, 6);
+                enc424j600BFSReg(ECON1, ECON1_DMAST); // Wait until done
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                enc424j600WriteReg(EDMAST, nextPacketPointer + 2 + sizeof (statusVector)); //Switch MAC addr in packet
+                enc424j600WriteReg(EDMADST, TXSTART + 6);
+                enc424j600WriteReg(EDMALEN, 6);
+                enc424j600BFSReg(ECON1, ECON1_DMAST); // Wait until done
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                enc424j600WriteReg(EDMAST, nextPacketPointer + 2 + sizeof (statusVector) + 12); //Copy packet
+                enc424j600WriteReg(EDMADST, TXSTART + 12);
+                enc424j600WriteReg(EDMALEN, ipPacketLen + 2);
+                enc424j600BFSReg(ECON1, ECON1_DMAST); // Wait until done
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                //Switch IP addr
+                enc424j600WriteReg(EDMAST, nextPacketPointer + 2 + sizeof (statusVector) + 26); //Switch IP addr in packet
+                enc424j600WriteReg(EDMADST, TXSTART + 30);
+                enc424j600WriteReg(EDMALEN, 4);
+                enc424j600BFSReg(ECON1, ECON1_DMAST); // Wait until done
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                enc424j600WriteReg(EDMAST, nextPacketPointer + 2 + sizeof (statusVector) + 30); //Switch IP addr in packet
+                enc424j600WriteReg(EDMADST, TXSTART + 26);
+                enc424j600WriteReg(EDMALEN, 4);
+                enc424j600BFSReg(ECON1, ECON1_DMAST); // Wait until done
+                while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
+                }
+                //Change echo request to echo reply
+                packetData[0] = 0;
+                packetData[1] = 0;
+                enc424j600WriteReg(EGPWRPT, 34);
+                enc424j600WriteMemoryWindow(GP_WINDOW, packetData, 1);
+                enc424j600WriteReg(EGPWRPT, 36);
+                enc424j600WriteMemoryWindow(GP_WINDOW, packetData, 2);
+                //Compute checksum (use packetData for mem saving)
+                *(u16*) packetData = enc424j600ChecksumCalculation(ETH_HEADER + ipHeaderLen, ipPacketLen - ipHeaderLen, 0x0000);
+                //Write it to the packet
+                enc424j600WriteReg(EGPWRPT, 36);
+                enc424j600WriteMemoryWindow(GP_WINDOW, packetData, 2);
+                //Flush packet out
+                enc424j600WriteReg(ETXLEN, ipPacketLen + ETH_HEADER);
+                enc424j600MACFlush();
+            }
+            enc424j600WriteReg(ERXRDPT, nextPacketPointer);
+            enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & nextPacketPointer, sizeof (nextPacketPointer));
+            newRXTail = nextPacketPointer - 2;
+            //Special situation if nextPacketPointer is exactly RXSTART
+            if (nextPacketPointer == RXSTART)
+                newRXTail = RAMSIZE - 2;
+            //Packet decrement
+            enc424j600BFSReg(ECON1, ECON1_PKTDEC);
+            //Write new RX tail
+            enc424j600WriteReg(ERXTAIL, newRXTail);
+            //
+            return 0;
+        }
+    } 
+#endif
 
     // Set the RX Read Pointer to the beginning of the next unprocessed packet
     enc424j600WriteReg(ERXRDPT, nextPacketPointer);
 
-
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & nextPacketPointer, sizeof (nextPacketPointer));
+
     enc424j600ReadMemoryWindow(RX_WINDOW, (u08*) & statusVector, sizeof (statusVector));
     if (statusVector.bits.ByteCount <= len) len = statusVector.bits.ByteCount;
     enc424j600ReadMemoryWindow(RX_WINDOW, packet, len);
@@ -448,7 +547,6 @@ static void enc424j600MACFlush(void) {
 static u16 enc424j600ChecksumCalculation(u16 position, u16 length, u16 seed) {
     // Wait until module is idle
     while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
-        _delay_us(50);
     }
     // Clear DMACPY to prevent a copy operation
     enc424j600BFCReg(ECON1, ECON1_DMACPY);
@@ -469,7 +567,6 @@ static u16 enc424j600ChecksumCalculation(u16 position, u16 length, u16 seed) {
     enc424j600BFSReg(ECON1, ECON1_DMAST);
     // Wait until done
     while (enc424j600ReadReg(ECON1) & ECON1_DMAST) {
-        _delay_us(50);
     }
     return enc424j600ReadReg(EDMACS);
 }
