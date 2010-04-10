@@ -41,7 +41,7 @@
 CC		= avr-gcc
 
 #Compiler flags
-CFLAGS	= -I. -Wall -mmcu=$(MCU) -g -fpack-struct -Os -funsigned-char -funsigned-bitfields -mcall-prologues -Wstrict-prototypes -std=gnu99 
+CFLAGS	= -I. -Wall -mmcu=$(MCU) -g -fpack-struct -Os -funsigned-char -funsigned-bitfields -Wstrict-prototypes -std=gnu99 
 
 #Object translator
 OBJCOPY	= avr-objcopy

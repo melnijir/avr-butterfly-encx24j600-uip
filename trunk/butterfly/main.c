@@ -89,7 +89,7 @@ int main(void) {
 
     //Display welcome message
     LCD_puts_f(PSTR("START"));
-    _delay_us(500000);
+    _delay_us(1000000);
 
     //Init network
     network_init();
