@@ -17,7 +17,7 @@
  *                * This driver is inspired by ENC28J60 driver from Pascal
  *                  Stang (2005).
  *
- *                * Many lines of code are rewritten from Microchip's TCP/IP
+ *                * Some lines of code are rewritten from Microchip's TCP/IP
  *                  stack.
  * 
  * ****************************************/
@@ -26,7 +26,6 @@
 #include "enc424j600conf.h"
 #include "global.h"
 #include <avr/io.h>
-#include <avr/iom169.h>
 #include <util/delay.h>
 
 // Binary constant identifiers for ReadMemoryWindow() and WriteMemoryWindow()
@@ -503,8 +502,6 @@ static bool enc424j600MACIsTxReady(void) {
 }
 
 static void enc424j600MACFlush(void) {
-    u16 w;
-
     // Check to see if the duplex status has changed.  This can
     // change if the user unplugs the cable and plugs it into a
     // different node.  Auto-negotiation will automatically set
@@ -512,6 +509,8 @@ static void enc424j600MACFlush(void) {
     // inter-packet gap timing and duplex state to match.
     if (enc424j600ReadReg(EIR) & EIR_LINKIF) {
         enc424j600BFCReg(EIR, EIR_LINKIF);
+
+        u16 w;
 
         // Update MAC duplex settings to match PHY duplex setting
         w = enc424j600ReadReg(MACON2);
@@ -528,14 +527,7 @@ static void enc424j600MACFlush(void) {
     }
 
 
-    // Start the transmission, but only if we are linked.  Supressing
-    // transmissing when unlinked is necessary to avoid stalling the TX engine
-    // if we are in PHY energy detect power down mode and no link is present.
-    // A stalled TX engine won't do any harm in itself, but will cause the
-    // MACIsTXReady() function to continuously return FALSE, which will
-    // ultimately stall the Microchip TCP/IP stack since there is blocking code
-    // elsewhere in other files that expect the TX engine to always self-free
-    // itself very quickly.
+    // Start the transmission, but only if we are linked.
     if (enc424j600ReadReg(ESTAT) & ESTAT_PHYLNK)
         enc424j600BFSReg(ECON1, ECON1_TXRTS);
 }
@@ -611,6 +603,7 @@ static u16 enc424j600ReadReg(u16 address) {
 
     // See if we need to change register banks
     bank = ((u08) address) & 0xE0;
+    //If address is banked, we will use banked access
     if (bank <= (0x3u << 5)) {
         if (bank != currentBank) {
             if (bank == (0x0u << 5))
@@ -644,6 +637,7 @@ static void enc424j600WriteReg(u16 address, u16 data) {
 
     // See if we need to change register banks
     bank = ((u08) address) & 0xE0;
+    //If address is banked, we will use banked access
     if (bank <= (0x3u << 5)) {
         if (bank != currentBank) {
             if (bank == (0x0u << 5))
